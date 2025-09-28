@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Performance Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: A multi-view dashboard structure was chosen to guide the user from a high-level summary to specific details, which is a highly effective way to explore data. The three main views (Class Overview, Student Drill-Down, Subject Analysis) allow users to answer different kinds of questions intuitively. The 'Class Overview' provides an immediate summary of overall performance. The 'Student Drill-Down' allows for focused analysis of an individual. The 'Subject Analysis' enables comparison across students for a specific academic area. This layered approach is superior to a single, cluttered view or a simple table because it reduces cognitive load and makes data exploration a guided, interactive process. -->
+    <!-- Visualization & Content Choices: 
+        - All Students' Percentages -> Goal: Compare -> Viz: Bar Chart -> Interaction: Hover for details, click to drill down -> Justification: Provides a quick visual distribution of class performance, making it easy to spot outliers. -> Library: Chart.js.
+        - Subject Averages -> Goal: Compare -> Viz: Radar Chart -> Interaction: Hover for details -> Justification: Excellent for comparing multiple quantitative variables (subjects) for a single entity (the class), revealing areas of collective strength and weakness. -> Library: Chart.js.
+        - Individual Student's Marks -> Goal: Inform/Compare -> Viz: Bar Chart with class average line -> Interaction: View is triggered by clicking a student -> Justification: Clearly shows a student's performance per subject and provides immediate context by comparing it against the class average. -> Library: Chart.js.
+        - All Student Marks in One Subject -> Goal: Compare/Analyze -> Viz: Bar Chart -> Interaction: User selects subject from a dropdown to update the chart -> Justification: Facilitates easy identification of high and low performers within a specific subject. -> Library: Chart.js.
+        - Full Marksheet -> Goal: Organize/Reference -> Viz: Interactive HTML Table -> Interaction: Sort by any column, click a name to drill down -> Justification: Provides access to the raw data in a familiar format, with added functionality for sorting and navigation. -> Library: HTML + JS. 
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF7;
+            color: #333;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            max-width: 1200px;
+            height: 400px;
+            max-height: 50vh;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+        }
+        .nav-button.active {
+            background-color: #A9C5A0 !important;
+            color: #FFFFFF !important;
+            font-weight: 600;
+        }
+        .table-header {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .table-header:hover {
+            background-color: #E3D5CA;
+        }
+        .table-row {
+             cursor: pointer;
+        }
+        .table-row:hover {
+            background-color: #F0EBE3;
+        }
+        .highlight-col {
+            background-color: #E9E2DB !important;
+        }
+        .main-content-wrapper {
+            transition: opacity 0.4s ease-in-out;
+        }
+        .main-content-wrapper.fade-out {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div id="app" class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">CREDIBLE ACADEMY, BAKANER</h1>
+            <p class="text-gray-500 mt-2 uppercase text-sm font-semibold tracking-wider">Quarterly Examination 2025</p>
+            <p class="text-gray-600 mt-1">CLASS 7TH DASHBOARD</p>
+        </header>
+
+        <nav class="flex justify-center items-center space-x-2 md:space-x-4 mb-8 bg-white p-2 rounded-full shadow-md w-fit mx-auto">
+            <button id="nav-overview" class="nav-button active text-sm md:text-base px-4 py-2 rounded-full bg-gray-200 text-gray-700">Class Overview</button>
+            <button id="nav-subject" class="nav-button text-sm md:text-base px-4 py-2 rounded-full bg-gray-200 text-gray-700">Subject Analysis</button>
+        </nav>
+
+        <main id="main-content" class="main-content-wrapper">
+        </main>
+    </div>
+
+    <script>
+        const studentData = [
+            { id: 1, name: "Apeksha", marks: { English: 42, Hindi: 30, Maths: 35, Science: 30, "So. Science": 28, Sanskrit: 26, "G.K.": 30 } },
+            { id: 2, name: "Aayush Dodve", marks: { English: 55, Hindi: 56, Maths: 34, Science: 52, "So. Science": 56, Sanskrit: 52, "G.K.": 58 } },
+            { id: 3, name: "Aayush Eske", marks: { English: 51, Hindi: 50, Maths: 36, Science: 52, "So. Science": 56, Sanskrit: 46, "G.K.": 50 } },
+            { id: 4, name: "Bhawan", marks: { English: 59, Hindi: 59, Maths: 50, Science: 59, "So. Science": 59, Sanskrit: 55, "G.K.": 60 } },
+            { id: 5, name: "Chetan", marks: { English: 53, Hindi: 49, Maths: 40, Science: 44, "So. Science": 38, Sanskrit: 35, "G.K.": 54 } },
+            { id: 6, name: "Goutam", marks: { English: 60, Hindi: 59, Maths: 58, Science: 59, "So. Science": 59.5, Sanskrit: 60, "G.K.": 60 } },
+            { id: 7, name: "Gouravraj", marks: { English: 60, Hindi: 59, Maths: 58, Science: 59.5, "So. Science": 59.5, Sanskrit: 59, "G.K.": 60 } },
+            { id: 8, name: "Ishwar", marks: { English: 36, Hindi: 31, Maths: 22, Science: 24, "So. Science": 24, Sanskrit: 24, "G.K.": 23 } },
+            { id: 9, name: "Karuna", marks: { English: 58, Hindi: 48, Maths: 40, Science: 52, "So. Science": 50, Sanskrit: 47, "G.K.": 58 } },
+            { id: 10, name: "Kratika", marks: { English: 55, Hindi: 50, Maths: 37, Science: 45, "So. Science": 50, Sanskrit: 46, "G.K.": 56 } },
+            { id: 11, name: "Krishna", marks: { English: 46, Hindi: 41, Maths: 36, Science: 47, "So. Science": 0, Sanskrit: 29, "G.K.": 0 } },
+            { id: 12, name: "Kunal", marks: { English: 57, Hindi: 58, Maths: 55, Science: 57, "So. Science": 55, Sanskrit: 55, "G.K.": 59 } },
+            { id: 13, name: "Manish", marks: { English: 58, Hindi: 57, Maths: 57, Science: 52, "So. Science": 55, Sanskrit: 49, "G.K.": 58 } },
+            { id: 14, name: "Minisha", marks: { English: 60, Hindi: 59, Maths: 59, Science: 59, "So. Science": 60, Sanskrit: 56, "G.K.": 60 } },
+            { id: 15, name: "Mohit", marks: { English: 47, Hindi: 38, Maths: 38, Science: 40, "So. Science": 25, Sanskrit: 23, "G.K.": 50 } },
+            { id: 16, name: "Narendra", marks: { English: 47, Hindi: 55, Maths: 34, Science: 43, "So. Science": 43, Sanskrit: 41, "G.K.": 52 } },
+            { id: 17, name: "Nilesh", marks: { English: 39, Hindi: 35, Maths: 36, Science: 49, "So. Science": 38, Sanskrit: 24, "G.K.": 52 } },
+            { id: 18, name: "Payal", marks: { English: 59, Hindi: 54, Maths: 45, Science: 59, "So. Science": 58.5, Sanskrit: 49, "G.K.": 59 } },
+            { id: 19, name: "Pravin", marks: { English: 54, Hindi: 43, Maths: 36, Science: 46, "So. Science": 34, Sanskrit: 30, "G.K.": 55 } },
+            { id: 20, name: "Priyanshi", marks: { English: 55, Hindi: 56, Maths: 49, Science: 55, "So. Science": 51, Sanskrit: 48, "G.K.": 55 } },
+            { id: 21, name: "Priyanshu", marks: { English: 58, Hindi: 51, Maths: 34, Science: 45, "So. Science": 53, Sanskrit: 54, "G.K.": 59 } },
+            { id: 22, name: "Riddhi", marks: { English: 59, Hindi: 59, Maths: 50, Science: 57, "So. Science": 58, Sanskrit: 56, "G.K.": 59 } },
+            { id: 23, name: "Ritik", marks: { English: 55, Hindi: 42, Maths: 35, Science: 42, "So. Science": 30, Sanskrit: 26, "G.K.": 44 } },
+            { id: 24, name: "Sneha", marks: { English: 38, Hindi: 0, Maths: 0, Science: 0, "So. Science": 0, Sanskrit: 13, "G.K.": 28 } },
+            { id: 25, name: "Shivam", marks: { English: 59, Hindi: 59, Maths: 51, Science: 59, "So. Science": 59, Sanskrit: 56, "G.K.": 58 } },
+        ];
+
+        const subjects = ["English", "Hindi", "Maths", "Science", "So. Science", "Sanskrit", "G.K."];
+        const maxMarksPerSubject = { English: 60, Hindi: 60, Maths: 60, Science: 60, "So. Science": 60, Sanskrit: 60, "G.K.": 60 };
+        const totalMaxMarks = Object.values(maxMarksPerSubject).reduce((a, b) => a + b, 0);
+
+        let processedData = [];
+        let subjectAverages = {};
+        
+        let currentView = 'overview';
+        let currentSortKey = 'percentage';
+        let currentSortOrder = 'desc';
+        let activeCharts = [];
+
+        function processData() {
+            processedData = studentData.map(student => {
+                const total = Object.values(student.marks).reduce((sum, mark) => sum + mark, 0);
+                const percentage = (total / totalMaxMarks) * 100;
+                return { ...student, total, percentage };
+            });
+
+            subjects.forEach(subject => {
+                const total = processedData.reduce((sum, student) => sum + student.marks[subject], 0);
+                subjectAverages[subject] = total / processedData.length;
+            });
+        }
+        
+        function destroyActiveCharts() {
+            activeCharts.forEach(chart => chart.destroy());
+            activeCharts = [];
+        }
+
+        function sortData(key) {
+            if (currentSortKey === key) {
+                currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortKey = key;
+                currentSortOrder = 'desc';
+            }
+            
+            processedData.sort((a, b) => {
+                let valA, valB;
+                if (key === 'name') {
+                    valA = a.name.toLowerCase();
+                    valB = b.name.toLowerCase();
+                } else if (subjects.includes(key)) {
+                    valA = a.marks[key];
+                    valB = b.marks[key];
+                } else {
+                    valA = a[key];
+                    valB = b[key];
+                }
+
+                if (valA < valB) return currentSortOrder === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderOverview();
+        }
+
+        function switchView(renderFunction, ...args) {
+            const mainContent = document.getElementById('main-content');
+            mainContent.classList.add('fade-out');
+            
+            setTimeout(() => {
+                renderFunction(...args);
+                mainContent.classList.remove('fade-out');
+            }, 400);
+        }
+
+
+        function renderOverview() {
+            destroyActiveCharts();
+            const mainContent = document.getElementById('main-content');
+            
+            // Explicitly sort and select the top 3 performers to ensure accuracy
+            const topPerformers = [...processedData].sort((a, b) => b.percentage - a.percentage).slice(0, 3);
+            
+            const percentages = processedData.map(s => s.percentage);
+            const classAverage = percentages.reduce((a, b) => a + b, 0) / percentages.length;
+            const highestPercentage = Math.max(...percentages);
+            const lowestPercentage = Math.min(...percentages);
+
+            mainContent.innerHTML = `
+                <section id="class-summary" class="mb-12">
+                     <p class="text-center text-gray-700 mb-8 max-w-3xl mx-auto">This section provides a high-level summary of the entire class's performance. You can see key metrics at a glance, compare subject strengths, and view the overall performance distribution of all students. The table below is interactive; click on a student's name for a detailed breakdown of their results.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 text-center">
+                        <div class="bg-white p-6 rounded-lg shadow-md"><p class="text-sm text-gray-500">Total Students</p><p class="text-3xl font-bold">${processedData.length}</p></div>
+                        <div class="bg-white p-6 rounded-lg shadow-md"><p class="text-sm text-gray-500">Class Average</p><p class="text-3xl font-bold">${classAverage.toFixed(2)}%</p></div>
+                        <div class="bg-white p-6 rounded-lg shadow-md"><p class="text-sm text-gray-500">Highest Score</p><p class="text-3xl font-bold">${highestPercentage.toFixed(2)}%</p></div>
+                        <div class="bg-white p-6 rounded-lg shadow-md"><p class="text-sm text-gray-500">Lowest Score</p><p class="text-3xl font-bold">${lowestPercentage.toFixed(2)}%</p></div>
+                    </div>
+                </section>
+
+                <section id="top-performers" class="mb-12">
+                    <h3 class="font-bold text-2xl mb-6 text-center text-gray-800">Top 3 Students</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                        ${topPerformers.map((student, index) => {
+                            const medals = ['🥇', '🥈', '🥉'];
+                            const colors = [
+                                'bg-amber-50 border-amber-400', 
+                                'bg-slate-100 border-slate-400', 
+                                'bg-yellow-50 border-yellow-500'
+                            ];
+                            return `
+                                <div class="${colors[index]} p-6 rounded-lg shadow-md border-t-4">
+                                    <p class="text-4xl mb-2">${medals[index]}</p>
+                                    <p class="text-xl font-bold text-gray-800">${student.name}</p>
+                                    <p class="text-lg font-semibold text-gray-600">${student.percentage.toFixed(2)}%</p>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </section>
+
+                <section id="charts" class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+                    <div class="bg-white p-4 md:p-6 rounded-lg shadow-md">
+                        <h3 class="font-bold text-lg mb-4 text-center">Student Performance Distribution (%)</h3>
+                        <div class="chart-container"><canvas id="performanceChart"></canvas></div>
+                    </div>
+                    <div class="bg-white p-4 md:p-6 rounded-lg shadow-md">
+                        <h3 class="font-bold text-lg mb-4 text-center">Average Scores by Subject</h3>
+                        <div class="chart-container"><canvas id="subjectAveragesChart"></canvas></div>
+                    </div>
+                </section>
+                
+                <section id="student-table" class="bg-white p-4 md:p-6 rounded-lg shadow-md">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg text-center md:text-left mb-2 md:mb-0">Detailed Mark Sheet</h3>
+                        <div class="relative">
+                             <input type="text" id="search-input" placeholder="Search for a student..." class="pl-8 pr-4 py-2 border rounded-full w-64 focus:outline-none focus:ring-2 focus:ring-amber-400">
+                             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th class="table-header px-6 py-3" data-sort="name">Student Name</th>
+                                    ${subjects.map(s => `<th class="table-header px-6 py-3" data-sort="${s}">${s}</th>`).join('')}
+                                    <th class="table-header px-6 py-3" data-sort="total">Total</th>
+                                    <th class="table-header px-6 py-3" data-sort="percentage">Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody id="marks-table-body">
+                                ${processedData.map(student => `
+                                    <tr class="table-row border-b" data-id="${student.id}" data-name="${student.name.toLowerCase()}">
+                                        <td class="px-6 py-4 font-medium whitespace-nowrap">${student.name}</td>
+                                        ${subjects.map(s => `<td class="px-6 py-4">${student.marks[s]}</td>`).join('')}
+                                        <td class="px-6 py-4 font-bold">${student.total.toFixed(1)}</td>
+                                        <td class="px-6 py-4 font-bold">${student.percentage.toFixed(2)}%</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            `;
+            
+            renderPerformanceChart();
+            renderSubjectAveragesChart();
+            
+            document.querySelectorAll('.table-header').forEach((header, index) => {
+                header.addEventListener('click', () => sortData(header.dataset.sort));
+                header.addEventListener('mouseenter', () => highlightColumn(index, true));
+                header.addEventListener('mouseleave', () => highlightColumn(index, false));
+            });
+            document.querySelectorAll('.table-row').forEach(row => {
+                row.addEventListener('click', () => switchView(renderStudentDetail, parseInt(row.dataset.id)));
+            });
+
+            document.getElementById('search-input').addEventListener('keyup', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                document.querySelectorAll('#marks-table-body tr').forEach(row => {
+                    const studentName = row.dataset.name;
+                    if (studentName.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        function highlightColumn(index, isHighlighted) {
+            document.querySelectorAll(`#marks-table-body tr`).forEach(row => {
+                const cell = row.children[index];
+                if (cell) {
+                    if (isHighlighted) {
+                        cell.classList.add('highlight-col');
+                    } else {
+                        cell.classList.remove('highlight-col');
+                    }
+                }
+            });
+        }
+        
+        function renderPerformanceChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: processedData.map(s => s.name),
+                    datasets: [{
+                        label: 'Student Percentage',
+                        data: processedData.map(s => s.percentage),
+                        backgroundColor: 'rgba(169, 197, 160, 0.6)',
+                        borderColor: 'rgba(169, 197, 160, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const student = processedData[context.dataIndex];
+                                    return `${student.name}: ${student.percentage.toFixed(2)}% (Rank: ${context.dataIndex + 1})`;
+                                }
+                            }
+                        }
+                    },
+                     onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const studentIndex = elements[0].index;
+                            const studentId = processedData[studentIndex].id;
+                            switchView(renderStudentDetail, studentId);
+                        }
+                    }
+                }
+            });
+            activeCharts.push(chart);
+        }
+
+        function renderSubjectAveragesChart() {
+            const ctx = document.getElementById('subjectAveragesChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: subjects,
+                    datasets: [{
+                        label: 'Class Average Score',
+                        data: Object.values(subjectAverages),
+                        backgroundColor: 'rgba(227, 213, 202, 0.4)',
+                        borderColor: 'rgba(227, 213, 202, 1)',
+                        pointBackgroundColor: 'rgba(227, 213, 202, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(227, 213, 202, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                     scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 60,
+                            angleLines: { color: 'rgba(0, 0, 0, 0.1)' },
+                            grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                            pointLabels: { font: { size: 12 } },
+                            ticks: { backdropColor: 'rgba(0,0,0,0)', stepSize: 10 }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+            activeCharts.push(chart);
+        }
+
+        function renderStudentDetail(studentId) {
+            destroyActiveCharts();
+            currentView = 'studentDetail';
+            const student = processedData.find(s => s.id === studentId);
+            const mainContent = document.getElementById('main-content');
+            
+            document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
+
+            mainContent.innerHTML = `
+                <section class="bg-white p-4 md:p-8 rounded-lg shadow-md">
+                    <button id="back-btn" class="mb-6 bg-gray-200 text-gray-700 px-4 py-2 rounded-full hover:bg-gray-300 transition-colors">&larr; Back to Overview</button>
+                    <div class="text-center mb-8">
+                        <h2 class="text-3xl font-bold">${student.name}</h2>
+                        <div class="flex justify-center space-x-8 mt-4 text-lg">
+                            <p><span class="font-semibold">Total Marks:</span> ${student.total.toFixed(1)} / ${totalMaxMarks}</p>
+                            <p><span class="font-semibold">Percentage:</span> ${student.percentage.toFixed(2)}%</p>
+                        </div>
+                    </div>
+                    <p class="text-center text-gray-700 mb-8 max-w-3xl mx-auto">This chart visualizes ${student.name}'s performance in each subject. The blue bars represent the student's score, while the orange line shows the class average for each subject, providing a clear comparison.</p>
+                    <div class="chart-container"><canvas id="studentMarksChart"></canvas></div>
+                </section>
+            `;
+
+            renderStudentMarksChart(student);
+
+            document.getElementById('back-btn').addEventListener('click', () => {
+                currentView = 'overview';
+                document.getElementById('nav-overview').classList.add('active');
+                document.getElementById('nav-subject').classList.remove('active');
+                switchView(renderOverview);
+            });
+        }
+        
+        function renderStudentMarksChart(student) {
+            const ctx = document.getElementById('studentMarksChart').getContext('2d');
+            const studentMarks = Object.values(student.marks);
+            const averageMarks = Object.values(subjectAverages);
+            
+            const barColors = studentMarks.map((mark, index) => {
+                return mark >= averageMarks[index] ? 'rgba(75, 192, 192, 0.6)' : 'rgba(255, 99, 132, 0.6)';
+            });
+
+            const barBorderColors = studentMarks.map((mark, index) => {
+                return mark >= averageMarks[index] ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)';
+            });
+
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: subjects,
+                    datasets: [
+                        {
+                            label: `${student.name}'s Score`,
+                            data: studentMarks,
+                            backgroundColor: barColors,
+                            borderColor: barBorderColors,
+                            borderWidth: 1,
+                            order: 2,
+                        },
+                        {
+                            label: 'Class Average',
+                            data: Object.values(subjectAverages),
+                            type: 'line',
+                            borderColor: 'rgba(235, 150, 90, 1)',
+                            backgroundColor: 'rgba(235, 150, 90, 0.2)',
+                            fill: false,
+                            tension: 0.1,
+                            order: 1,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 60 }
+                    }
+                }
+            });
+             activeCharts.push(chart);
+        }
+
+        function renderSubjectAnalysis() {
+            destroyActiveCharts();
+            const mainContent = document.getElementById('main-content');
+            const defaultSubject = subjects[0];
+            mainContent.innerHTML = `
+                <section class="bg-white p-4 md:p-8 rounded-lg shadow-md">
+                     <p class="text-center text-gray-700 mb-8 max-w-3xl mx-auto">Analyze and compare the performance of all students in a specific subject. Use the dropdown menu to select a subject, and the chart will update to show the score distribution. Key statistics for the selected subject are displayed for a quick summary.</p>
+                    <div class="flex flex-col md:flex-row justify-center items-center mb-6">
+                        <label for="subject-select" class="mr-4 text-lg font-semibold">Select a Subject:</label>
+                        <select id="subject-select" class="p-2 border rounded-md shadow-sm">
+                            ${subjects.map(s => `<option value="${s}">${s}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div id="subject-stats" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center mb-8"></div>
+                    <div class="chart-container"><canvas id="subjectPerformanceChart"></canvas></div>
+                </section>
+            `;
+            
+            updateSubjectView(defaultSubject);
+
+            document.getElementById('subject-select').addEventListener('change', (e) => {
+                updateSubjectView(e.target.value);
+            });
+        }
+        
+        function updateSubjectView(subject) {
+            destroyActiveCharts();
+            const subjectMarks = processedData.map(s => s.marks[subject]);
+            const average = subjectAverages[subject];
+            const highest = Math.max(...subjectMarks);
+            const lowest = Math.min(...subjectMarks);
+
+            document.getElementById('subject-stats').innerHTML = `
+                <div class="bg-gray-50 p-4 rounded-lg"><p class="text-sm text-gray-500">Average Score</p><p class="text-2xl font-bold">${average.toFixed(2)}</p></div>
+                <div class="bg-gray-50 p-4 rounded-lg"><p class="text-sm text-gray-500">Highest Score</p><p class="text-2xl font-bold">${highest}</p></div>
+                <div class="bg-gray-50 p-4 rounded-lg"><p class="text-sm text-gray-500">Lowest Score</p><p class="text-2xl font-bold">${lowest}</p></div>
+            `;
+            
+            const ctx = document.getElementById('subjectPerformanceChart').getContext('2d');
+            const sortedBySubject = [...processedData].sort((a,b) => b.marks[subject] - a.marks[subject]);
+
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedBySubject.map(s => s.name),
+                    datasets: [{
+                        label: `Scores in ${subject}`,
+                        data: sortedBySubject.map(s => s.marks[subject]),
+                        backgroundColor: 'rgba(169, 197, 160, 0.6)',
+                        borderColor: 'rgba(169, 197, 160, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 60 }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const studentIndex = elements[0].index;
+                            const studentId = sortedBySubject[studentIndex].id;
+                            renderStudentDetail(studentId);
+                        }
+                    }
+                }
+            });
+            activeCharts.push(chart);
+        }
+
+
+        function init() {
+            processData();
+            sortData('percentage'); 
+
+            const navOverview = document.getElementById('nav-overview');
+            const navSubject = document.getElementById('nav-subject');
+            
+            navOverview.addEventListener('click', () => {
+                currentView = 'overview';
+                navOverview.classList.add('active');
+                navSubject.classList.remove('active');
+                switchView(sortData, currentSortKey);
+            });
+            
+            navSubject.addEventListener('click', () => {
+                currentView = 'subject';
+                navSubject.classList.add('active');
+                navOverview.classList.remove('active');
+                switchView(renderSubjectAnalysis);
+            });
+        }
+        
+        window.onload = init;
+
+    </script>
+</body>
+</html>
+
+
+
+
+
